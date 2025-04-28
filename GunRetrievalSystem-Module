@@ -1,0 +1,70 @@
+-- Place In ServerScriptService Parented Under Folder Named "ModuleScripts"
+
+local RetrievalSystem = {}
+
+RetrievalSystem.Guns = {}
+
+-- Main Functions
+
+-- Function To Add Gun To Retrieval List
+function RetrievalSystem:AddGun(Player: Player, Gun)
+	if not self.Guns[Player] then
+		self.Guns[Player] = {}
+	end
+	table.insert(self.Guns[Player], Gun)
+end
+
+-- Function To Get Gun From Given Model
+function RetrievalSystem:GetGunFromModel(Model: Model)
+	for Player, Table in pairs(self.Guns) do
+		for _, Gun in pairs(Table) do
+			if Gun.CurrentModel == Model then
+				return Gun, Player
+			end
+		end
+	end
+	return nil
+end
+
+-- Function To Get Guns From Given Player
+function RetrievalSystem:GetGunsFromPlayer(player)
+	for Player, Table in pairs(self.Guns) do
+		if Player == player then
+			return Table
+		end
+	end
+	return nil
+end
+
+-- Function To Remove Gun From Retrieval List
+function RetrievalSystem:RemoveGun(Player: Player, Instance)
+	for _, Gun in pairs(self.Guns[Player]) do
+		if Gun == Instance then
+			if Gun.CurrentModel then
+				Gun.CurrentModel:Destroy()
+			end
+			
+			Gun = nil
+		end
+	end
+end
+
+-- Function To Remove Gun From The Given Model
+function RetrievalSystem:RemoveGunFromModel(Model)
+	local Gun, Player = RetrievalSystem:GetGunFromModel(Model)
+	RetrievalSystem:RemoveGun(Player)
+end
+
+-- Function To Remove All Guns From A Player
+function RetrievalSystem:RemoveGunsFromPlayer(Player)
+	local Guns = RetrievalSystem:GetGunsFromPlayer(Player)
+	if Guns then
+		for _, Gun in pairs(Guns) do
+			if Gun then
+				Gun:Remove()
+			end
+		end
+	end
+end
+
+return RetrievalSystem
