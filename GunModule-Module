@@ -158,7 +158,7 @@ function Gun:Shoot(MousePosition)
 		FireSound.Parent = self.CurrentModel.Sounds
 		FireSound:Play()
 
-		FireSound.Ended:Connect(function(soundId: string) 
+		FireSound.Ended:Once(function(soundId: string) 
 			FireSound:Destroy()
 		end)
 	else
@@ -172,8 +172,12 @@ end
 -- Function To Delete The Gun And Remove It From The Retrival System
 function Gun:Remove()
 	RetrievalSystem:RemoveGunFromModel(self.CurrentModel)
-	self.CurrentModel:Destroy()
-	self = nil
+	if self.CurrentModel then
+		self.CurrentModel:Destroy()
+	end
+	for Key, _ in pairs(self) do
+		self[Key] = nil
+	end
 end
 
 return Gun
