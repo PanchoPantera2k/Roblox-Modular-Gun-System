@@ -38,21 +38,22 @@ end
 
 -- Function To Remove Gun From Retrieval List
 function RetrievalSystem:RemoveGun(Player: Player, Instance)
-	for _, Gun in pairs(self.Guns[Player]) do
+	for Index, Gun in pairs(self.Guns[Player]) do
 		if Gun == Instance then
 			if Gun.CurrentModel then
 				Gun.CurrentModel:Destroy()
 			end
-			
-			Gun = nil
+			table.remove(self.Guns[Player], Index)
+			break
 		end
 	end
+
 end
 
 -- Function To Remove Gun From The Given Model
 function RetrievalSystem:RemoveGunFromModel(Model)
 	local Gun, Player = RetrievalSystem:GetGunFromModel(Model)
-	RetrievalSystem:RemoveGun(Player)
+	RetrievalSystem:RemoveGun(Player, Gun)
 end
 
 -- Function To Remove All Guns From A Player
