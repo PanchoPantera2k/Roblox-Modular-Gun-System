@@ -1,0 +1,179 @@
+-- Place In ServerScriptService Parented Under Folder Named "ModuleScripts"
+
+-- Initiate The GunModule Using OOP
+local Gun = {}
+Gun.__index = Gun
+
+-- Service Variables
+local ServerStorage = game:GetService("ServerStorage")
+
+-- Module Script Variables
+local RetrievalSystem = require(script.Parent:WaitForChild("GunRetrievalSystem"))
+
+-- Functions
+
+-- Start Functions
+
+-- Function To Initiate The Gun Object
+function Gun.New(Data, Owner)
+	local self = setmetatable({}, Gun)
+	self.Name = Data.Name
+	self.MaxAmmo = Data.MaxAmmo
+	self.Ammo = Data.Ammo
+	self.Damage = Data.Damage
+	self.FireRate = Data.FireRate
+	self.ReloadTime = Data.ReloadTime
+	self.HeadShotMultiplier = Data.HeadShotMultiplier
+	
+	self.Model = Data.Model
+	self.CurrentModel = nil
+	
+	self.Owner = Owner
+	
+	RetrievalSystem:AddGun(Owner, self)
+	
+	return self
+end
+
+-- Function To Create A Current Model
+function Gun:Parent(NewParent)
+	if self.Model then
+		if not self.CurrentModel then
+			self.CurrentModel = self.Model:Clone()
+			
+			-- Set Attributes To Current Model
+			self.CurrentModel:SetAttribute("MaxAmmo", self.MaxAmmo)
+			self.CurrentModel:SetAttribute("ReloadTime", self.ReloadTime)
+			self.CurrentModel:SetAttribute("StartingAmmo", self.Ammo)
+			self.CurrentModel:SetAttribute("FireRate", self.FireRate)
+			self.CurrentModel:SetAttribute("Damage", self.Damage)
+			self.CurrentModel:SetAttribute("HeadShotMultiplier", self.HeadShotMultiplier)
+		end
+		
+		self.CurrentModel.Parent = NewParent
+	end
+end
+
+-- Main Functions
+
+local function CreateBloodEffect(RaycastInstance, EffectName, Emmisions, Duration)
+	local Part = Instance.new("Part")
+	Part.CanCollide = false
+	Part.Transparency = 1
+	
+	local Effect = ServerStorage:WaitForChild("BloodEffects"):WaitForChild(EffectName):Clone()
+	Effect.Parent = Part
+	Effect:Emit(Emmisions)
+	
+	Part.Position = RaycastInstance.Position
+	
+	local WeldConstraint = Instance.new("WeldConstraint")
+	WeldConstraint.Part0 = Part
+	WeldConstraint.Part1 = RaycastInstance
+	WeldConstraint.Parent = Part
+	
+	game.Debris:AddItem(Part, Duration)
+	
+	Part.Parent = RaycastInstance
+end
+
+-- Create And Fire A Bullet To The TargetPos
+local function CreateBullet(OriginPosition, TargetPos, self)
+	local Bullet = Instance.new("Part")
+	Bullet.Name = "Bullet"
+	Bullet.Size = Vector3.new(0.1, 0.1, 0.1)
+	Bullet.Shape = Enum.PartType.Ball
+	Bullet.Color = Color3.fromRGB(67, 67, 67)
+	Bullet.Material = Enum.Material.Metal
+	Bullet.CanCollide = false
+	Bullet.Anchored = false
+	Bullet.Position = OriginPosition
+	Bullet.BottomSurface = Enum.SurfaceType.Smooth
+	Bullet.TopSurface = Enum.SurfaceType.Smooth
+	Bullet.Parent = workspace.Bullets
+
+	local BodyVelocity = Instance.new("BodyVelocity")
+	BodyVelocity.Velocity = (TargetPos - OriginPosition).Unit * 500
+	BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+	BodyVelocity.P = math.huge
+	BodyVelocity.Parent = Bullet
+
+	Bullet.Touched:Connect(function(hit)
+		if not hit:IsDescendantOf(self.Owner.Character) and 
+			(hit:IsA("BasePart") or hit:IsA("MeshPart")) then
+			Bullet:Destroy()
+		end
+	end)
+
+	game.Debris:AddItem(Bullet, 15)
+end
+
+-- Function To Reload The Gun
+function Gun:Reload()
+	local ReloadSound = self.CurrentModel.Sounds.Reloading:Clone()
+	ReloadSound.Parent = self.CurrentModel.Sounds
+	ReloadSound:Play()
+
+	ReloadSound.Ended:Connect(function(soundId: string) 
+		ReloadSound:Destroy()
+	end)
+	
+	task.wait(self.ReloadTime)
+	
+	self.Ammo = self.MaxAmmo
+end
+
+-- Function To Shoot A Bullet Directed Towards The Target
+function Gun:Shoot(MousePosition)
+	if self.Ammo > 0 then
+		self.Ammo -= 1
+
+		local RaycastParameters = RaycastParams.new()
+		RaycastParameters.FilterType = Enum.RaycastFilterType.Exclude
+		RaycastParameters.FilterDescendantsInstances = {self.CurrentModel.Parent, workspace.Bullets}
+
+		local Origin = self.CurrentModel.BulletOrigin.Position
+		local Direction = (MousePosition - Origin).Unit * 1000
+
+		local RaycastResult = workspace:Raycast(Origin, Direction, RaycastParameters)
+
+		if RaycastResult then
+			local RaycastInstance = RaycastResult.Instance
+			local Humanoid = RaycastInstance.Parent:FindFirstChildOfClass("Humanoid") or RaycastInstance.Parent.Parent:FindFirstChildOfClass("Humanoid")
+
+			CreateBullet(Origin, RaycastResult.Position, self)
+
+			if Humanoid and self.Owner.Character:FindFirstChildOfClass("Humanoid") ~= Humanoid then
+				if RaycastInstance.Name == "Head" then
+					Humanoid:TakeDamage(self.Damage * self.HeadShotMultiplier)
+					CreateBloodEffect(RaycastInstance, "Effect2", 950, 20)
+				else
+					Humanoid:TakeDamage(self.Damage)
+					CreateBloodEffect(RaycastInstance, "Effect1", 280, 15)
+				end
+			end
+		end
+
+		local FireSound = self.CurrentModel.Sounds.Fire:Clone()
+		FireSound.Parent = self.CurrentModel.Sounds
+		FireSound:Play()
+
+		FireSound.Ended:Connect(function(soundId: string) 
+			FireSound:Destroy()
+		end)
+	else
+		self:Reload()
+	end
+end
+
+
+-- End Functions
+
+-- Function To Delete The Gun And Remove It From The Retrival System
+function Gun:Remove()
+	RetrievalSystem:RemoveGunFromModel(self.CurrentModel)
+	self.CurrentModel:Destroy()
+	self = nil
+end
+
+return Gun
