@@ -37,9 +37,11 @@ local Data = {
 			MaxAmmo = 25,
 			Ammo = 25,
 			Damage = 15,
+			Range = 100,
 			FireRate = .15,
 			ReloadTime = 2,
-			HeadShotMultiplier = 2,
+			HeadShotMultiplier = 1.5,
+			Spread = .05,
 			Model = AssaultRifle
 		}
 
