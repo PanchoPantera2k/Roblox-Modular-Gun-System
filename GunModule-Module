@@ -1,16 +1,77 @@
 -- Place In ServerScriptService Parented Under Folder Named "ModuleScripts"
-
 -- Initiate The GunModule Using OOP
 local Gun = {}
 Gun.__index = Gun
+Gun.Guns = {}
 
 -- Service Variables
 local ServerStorage = game:GetService("ServerStorage")
 
--- Module Script Variables
-local RetrievalSystem = require(script.Parent:WaitForChild("GunRetrievalSystem"))
-
 -- Functions
+
+-- Main Functions
+
+-- Function To Add Gun To Retrieval List
+function Gun:AddGun(Player: Player, Gun)
+	if not Gun.Guns[Player] then
+		Gun.Guns[Player] = {}
+	end
+	table.insert(Gun.Guns[Player], Gun)
+end
+
+-- Function To Get Gun From Given Model
+function Gun:GetGunFromModel(Model: Model)
+	for Player, Table in pairs(Gun.Guns) do
+		for _, Gun in pairs(Table) do
+			if Gun.CurrentModel == Model then
+				return Gun, Player
+			end
+		end
+	end
+	return nil
+end
+
+-- Function To Get Guns From Given Player
+function Gun:GetGunsFromPlayer(player)
+	for Player, Table in pairs(Gun.Guns) do
+		if Player == player then
+			return Table
+		end
+	end
+	return nil
+end
+
+-- Function To Remove Gun From Retrieval List
+function Gun:RemoveGun(Player: Player, Instance)
+	for Index, Gun in pairs(Gun.Guns[Player]) do
+		if Gun == Instance then
+			if Gun.CurrentModel then
+				Gun.CurrentModel:Destroy()
+			end
+			table.remove(Gun.Guns[Player], Index)
+			break
+		end
+	end
+
+end
+
+-- Function To Remove Gun From The Given Model
+function Gun:RemoveGunFromModel(Model)
+	local Gun, Player = Gun:GetGunFromModel(Model)
+	Gun:RemoveGun(Player, Gun)
+end
+
+-- Function To Remove All Guns From A Player
+function Gun:RemoveGunsFromPlayer(Player)
+	local Guns = Gun:GetGunsFromPlayer(Player)
+	if Guns then
+		for _, Gun in pairs(Guns) do
+			if Gun then
+				Gun:Remove()
+			end
+		end
+	end
+end
 
 -- Start Functions
 
@@ -21,16 +82,18 @@ function Gun.New(Data, Owner)
 	self.MaxAmmo = Data.MaxAmmo
 	self.Ammo = Data.Ammo
 	self.Damage = Data.Damage
+	self.Range = Data.Range
 	self.FireRate = Data.FireRate
 	self.ReloadTime = Data.ReloadTime
 	self.HeadShotMultiplier = Data.HeadShotMultiplier
+	self.Spread = Data.Spread
 	
 	self.Model = Data.Model
 	self.CurrentModel = nil
 	
 	self.Owner = Owner
 	
-	RetrievalSystem:AddGun(Owner, self)
+	Gun:AddGun(Owner, self)
 	
 	return self
 end
@@ -47,7 +110,9 @@ function Gun:Parent(NewParent)
 			self.CurrentModel:SetAttribute("StartingAmmo", self.Ammo)
 			self.CurrentModel:SetAttribute("FireRate", self.FireRate)
 			self.CurrentModel:SetAttribute("Damage", self.Damage)
+			self.CurrentModel:SetAttribute("Range", self.Range)
 			self.CurrentModel:SetAttribute("HeadShotMultiplier", self.HeadShotMultiplier)
+			self.CurrentModel:SetAttribute("Spread", self.Spread)
 		end
 		
 		self.CurrentModel.Parent = NewParent
@@ -77,6 +142,15 @@ local function CreateBloodEffect(RaycastInstance, EffectName, Emmisions, Duratio
 	Part.Parent = RaycastInstance
 end
 
+-- Function To Check If Hit Is Inside A Character
+local function InCharater(hit)
+	if hit.Parent and hit.Parent:FindFirstChild("Humanoid") then
+		return true 
+	else
+		return false 
+	end
+end
+
 -- Create And Fire A Bullet To The TargetPos
 local function CreateBullet(OriginPosition, TargetPos, self)
 	local Bullet = Instance.new("Part")
@@ -99,14 +173,35 @@ local function CreateBullet(OriginPosition, TargetPos, self)
 	BodyVelocity.Parent = Bullet
 
 	Bullet.Touched:Connect(function(hit)
-		if not hit:IsDescendantOf(self.Owner.Character) and 
-			(hit:IsA("BasePart") or hit:IsA("MeshPart")) then
-			Bullet:Destroy()
+		if not hit:IsDescendantOf(self.Owner.Character) then
+			if (hit:IsA("BasePart") or hit:IsA("MeshPart")) and
+				not (InCharater(hit)) then
+				Bullet.Position = TargetPos
+				BodyVelocity:Destroy()
+			else
+				Bullet:Destroy()
+			end
 		end
 	end)
 
 	game.Debris:AddItem(Bullet, 15)
 end
+
+-- Calculate Damage Using The Distance Between The Hit Object And Self
+local function CalculateDamage(DefaultDamage, RaycastResult: RaycastResult, self)
+	local Distance = RaycastResult.Distance
+	local MaxRange = self.Range
+
+	if Distance > MaxRange then
+		return 0
+	end
+
+	local DistanceMultiplier = 1-(Distance/MaxRange)
+	local Damage = DefaultDamage*DistanceMultiplier
+
+	return Damage
+end
+
 
 -- Function To Reload The Gun
 function Gun:Reload()
@@ -133,9 +228,14 @@ function Gun:Shoot(MousePosition)
 		RaycastParameters.FilterDescendantsInstances = {self.CurrentModel.Parent, workspace.Bullets}
 
 		local Origin = self.CurrentModel.BulletOrigin.Position
-		local Direction = (MousePosition - Origin).Unit * 1000
+		local Direction = (MousePosition - Origin).Unit
 
-		local RaycastResult = workspace:Raycast(Origin, Direction, RaycastParameters)
+		local Yaw = (math.random() - 0.5) * self.Spread
+		local Pitch = (math.random() - 0.5) * self.Spread
+		local SpreadCFrame = CFrame.new(Origin, Origin + Direction) * CFrame.Angles(Pitch, Yaw, 0)
+		local SpreadDirection = SpreadCFrame.LookVector * 1000
+
+		local RaycastResult = workspace:Raycast(Origin, SpreadDirection, RaycastParameters)
 
 		if RaycastResult then
 			local RaycastInstance = RaycastResult.Instance
@@ -145,10 +245,10 @@ function Gun:Shoot(MousePosition)
 
 			if Humanoid and self.Owner.Character:FindFirstChildOfClass("Humanoid") ~= Humanoid then
 				if RaycastInstance.Name == "Head" then
-					Humanoid:TakeDamage(self.Damage * self.HeadShotMultiplier)
+					Humanoid:TakeDamage(CalculateDamage(self.Damage * self.HeadShotMultiplier, RaycastResult, self))
 					CreateBloodEffect(RaycastInstance, "Effect2", 950, 20)
 				else
-					Humanoid:TakeDamage(self.Damage)
+					Humanoid:TakeDamage(CalculateDamage(self.Damage, RaycastResult, self))
 					CreateBloodEffect(RaycastInstance, "Effect1", 280, 15)
 				end
 			end
@@ -167,11 +267,12 @@ function Gun:Shoot(MousePosition)
 end
 
 
+
 -- End Functions
 
 -- Function To Delete The Gun And Remove It From The Retrival System
 function Gun:Remove()
-	RetrievalSystem:RemoveGunFromModel(self.CurrentModel)
+	Gun:RemoveGunFromModel(self.CurrentModel)
 	if self.CurrentModel then
 		self.CurrentModel:Destroy()
 	end
