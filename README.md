@@ -26,7 +26,6 @@ local Tools = ServerStorage:WaitForChild("Tools")
 
 -- Module Variables
 local GunModule = require(ServerModules:WaitForChild("GunModule"))
-local RetrievalSystem = require(ServerModules:WaitForChild("GunRetrievalSystem"))
 
 local AssaultRifle = Tools:WaitForChild("AssaultRifle")
 
@@ -68,8 +67,6 @@ Gun:Shoot(MousePosition) -- Shoots A Bullet Using A Raycast Towards The MousePos
 Gun:Reload() -- Reloads The Gun To Full Ammo After A Pre-Defined Time In Gun Data
 
 Gun:Remove() -- Properly Destroys And Removes Gun
-
-### RETRIEVAL SYSTEM FUNCTIONS
 
 :AddGun(Player, Gun) -- Adds A Gun To The Players Gun Retrieval System
 
