@@ -1,7 +1,10 @@
--- Place In ServerScriptService Parented Under Folder Named "ModuleScripts"
+-- ReadMe Assumes Module Is Placed In ServerScriptService Parented Under Folder Named "ModuleScripts"
+
 -- Initiate The GunModule Using OOP
 local Gun = {}
+-- Index the Gun Module To Itself
 Gun.__index = Gun
+-- Make A Gun Table To Contain All Existing Guns
 Gun.Guns = {}
 
 -- Service Variables
@@ -11,16 +14,23 @@ local ServerStorage = game:GetService("ServerStorage")
 
 -- Main Functions
 
--- Function To Add Gun To Retrieval List
+-- Gun Table Related Functions
+
+-- Function To Add Gun To Gun Table
 function Gun:AddGun(Player: Player, Gun)
+	-- Create A Gun Table For The Player If It Doesn't Already Exist
 	if not Gun.Guns[Player] then
 		Gun.Guns[Player] = {}
 	end
+	-- Insert Gun Object Into The Player Table
 	table.insert(Gun.Guns[Player], Gun)
 end
 
 -- Function To Get Gun From Given Model
 function Gun:GetGunFromModel(Model: Model)
+	-- Loop Through The Players And Their Guns And Check Their Current Model,
+	-- If Match, Returns The Gun, Else Returns nil
+	
 	for Player, Table in pairs(Gun.Guns) do
 		for _, Gun in pairs(Table) do
 			if Gun.CurrentModel == Model then
@@ -28,55 +38,53 @@ function Gun:GetGunFromModel(Model: Model)
 			end
 		end
 	end
+	
+	-- Return nil If No Result
 	return nil
 end
 
 -- Function To Get Guns From Given Player
-function Gun:GetGunsFromPlayer(player)
-	for Player, Table in pairs(Gun.Guns) do
-		if Player == player then
-			return Table
-		end
+function Gun:GetGunsFromPlayer(Player)
+	-- Check If Player Has A Gun Table, If So Return The Table,
+	-- Else Return nil
+	
+	if Gun.Guns[Player] then
+		return Gun.Guns[Player]
 	end
+	
+	-- Return nil If No Result
 	return nil
 end
 
--- Function To Remove Gun From Retrieval List
-function Gun:RemoveGun(Player: Player, Instance)
-	for Index, Gun in pairs(Gun.Guns[Player]) do
-		if Gun == Instance then
-			if Gun.CurrentModel then
-				Gun.CurrentModel:Destroy()
+-- Function To Remove Gun From Gun Table
+function Gun:RemoveGun(Player: Player, GunInstance)
+	-- Loop Through Players Gun And Find A Match, If Match Remove From Gun Table And Delete Model
+	
+	if Gun.Guns[Player] then
+		for i, Gun in pairs(Gun.Guns[Player]) do
+			if Gun == GunInstance then
+				if Gun.CurrentModel then
+					Gun.CurrentModel:Destroy()
+				end
+				table.remove(Gun.Guns[Player], i)
+				break
 			end
-			table.remove(Gun.Guns[Player], Index)
-			break
 		end
 	end
-
 end
 
 -- Function To Remove Gun From The Given Model
 function Gun:RemoveGunFromModel(Model)
+	-- Retrieve The Gun Model From Model Using :GetGunFromModel Then Remove It From Gun Table Using :RemoveGun
 	local Gun, Player = Gun:GetGunFromModel(Model)
 	Gun:RemoveGun(Player, Gun)
-end
-
--- Function To Remove All Guns From A Player
-function Gun:RemoveGunsFromPlayer(Player)
-	local Guns = Gun:GetGunsFromPlayer(Player)
-	if Guns then
-		for _, Gun in pairs(Guns) do
-			if Gun then
-				Gun:Remove()
-			end
-		end
-	end
 end
 
 -- Start Functions
 
 -- Function To Initiate The Gun Object
 function Gun.New(Data, Owner)
+	-- Set Metatable And All Properties Given From The Data
 	local self = setmetatable({}, Gun)
 	self.Name = Data.Name
 	self.MaxAmmo = Data.MaxAmmo
@@ -93,15 +101,20 @@ function Gun.New(Data, Owner)
 	
 	self.Owner = Owner
 	
+	-- Add Gun To Retrieval System
 	Gun:AddGun(Owner, self)
 	
+	-- Return Gun Object WITHOUT Model (Use :Parent)
 	return self
 end
 
 -- Function To Create A Current Model
 function Gun:Parent(NewParent)
+	-- Check If Gun Has Model
 	if self.Model then
+		-- If Gun Already Has Model, Ignore
 		if not self.CurrentModel then
+			-- Clone Model Then Set Attributes On Model
 			self.CurrentModel = self.Model:Clone()
 			
 			-- Set Attributes To Current Model
@@ -115,35 +128,45 @@ function Gun:Parent(NewParent)
 			self.CurrentModel:SetAttribute("Spread", self.Spread)
 		end
 		
+		-- Set The Parent To The Desired NewParent
 		self.CurrentModel.Parent = NewParent
 	end
 end
 
 -- Main Functions
 
+-- Create A Blood Effect With RaycastInstance, EffectName, Amount Of Emmisions, And Duration
 local function CreateBloodEffect(RaycastInstance, EffectName, Emmisions, Duration)
+	-- Create New Object To Parent Effect
 	local Part = Instance.new("Part")
+	Part.Size = Vector3.new(1,1,1)
 	Part.CanCollide = false
 	Part.Transparency = 1
 	
+	-- Get The Effect From Server Storage And Parent It And Start Emmiting Particles
 	local Effect = ServerStorage:WaitForChild("BloodEffects"):WaitForChild(EffectName):Clone()
 	Effect.Parent = Part
 	Effect:Emit(Emmisions)
 	
+	-- Set Part Position To The RaycastInstance Hit Position
 	Part.Position = RaycastInstance.Position
 	
+	-- Create A WeldConstraint To The RaycastInstance
 	local WeldConstraint = Instance.new("WeldConstraint")
 	WeldConstraint.Part0 = Part
 	WeldConstraint.Part1 = RaycastInstance
 	WeldConstraint.Parent = Part
 	
-	game.Debris:AddItem(Part, Duration)
+	-- Add Item To game.Debris To Be Destroyed After Set Duration And Add 3 Second For All Emmisions To Fire
+	game.Debris:AddItem(Part, Duration+3)
 	
+	-- Set The Parts Parent To Raycast Instance
 	Part.Parent = RaycastInstance
 end
 
 -- Function To Check If Hit Is Inside A Character
 local function InCharater(hit)
+	-- Check If The Hit Has A Parent And Humanoid (Is A Char) Return True Else Return False
 	if hit.Parent and hit.Parent:FindFirstChild("Humanoid") then
 		return true 
 	else
@@ -153,6 +176,7 @@ end
 
 -- Create And Fire A Bullet To The TargetPos
 local function CreateBullet(OriginPosition, TargetPos, self)
+	-- Create Bullet Instance And Set Properties
 	local Bullet = Instance.new("Part")
 	Bullet.Name = "Bullet"
 	Bullet.Size = Vector3.new(0.1, 0.1, 0.1)
@@ -165,13 +189,17 @@ local function CreateBullet(OriginPosition, TargetPos, self)
 	Bullet.BottomSurface = Enum.SurfaceType.Smooth
 	Bullet.TopSurface = Enum.SurfaceType.Smooth
 	Bullet.Parent = workspace.Bullets
-
+	
+	-- Add Body Velocity For Movement And Parent TO Bullet
 	local BodyVelocity = Instance.new("BodyVelocity")
 	BodyVelocity.Velocity = (TargetPos - OriginPosition).Unit * 500
 	BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 	BodyVelocity.P = math.huge
 	BodyVelocity.Parent = Bullet
-
+	
+	-- Once Bullet Touches The Object, If Not Descendat Of Owners Char
+	-- Then If BasePart Or MeshPart And Not In Char Delete Body Velocity And Set Pos To Target Pos
+	-- Else Delete Bullet
 	Bullet.Touched:Connect(function(hit)
 		if not hit:IsDescendantOf(self.Owner.Character) then
 			if (hit:IsA("BasePart") or hit:IsA("MeshPart")) and
@@ -183,66 +211,83 @@ local function CreateBullet(OriginPosition, TargetPos, self)
 			end
 		end
 	end)
-
+	
+	-- Add Bullet To game.Debris To Be Deleted After 15 Seconds
 	game.Debris:AddItem(Bullet, 15)
 end
 
 -- Calculate Damage Using The Distance Between The Hit Object And Self
 local function CalculateDamage(DefaultDamage, RaycastResult: RaycastResult, self)
+	-- Set Distance And Range Variables
 	local Distance = RaycastResult.Distance
 	local MaxRange = self.Range
-
+	
+	-- If Distance If Greater Than Range Return 0
 	if Distance > MaxRange then
 		return 0
 	end
-
+	
+	-- Create Multiplier With A Linear Fall Off And Multiply Damage By It
 	local DistanceMultiplier = 1-(Distance/MaxRange)
 	local Damage = DefaultDamage*DistanceMultiplier
-
+	
+	-- Return Damage
 	return Damage
 end
 
 
 -- Function To Reload The Gun
 function Gun:Reload()
+	-- Clone Reload Sound, Parent It, And Play It
 	local ReloadSound = self.CurrentModel.Sounds.Reloading:Clone()
 	ReloadSound.Parent = self.CurrentModel.Sounds
 	ReloadSound:Play()
-
+	
+	-- Attach Event So When Reload Sound Ends Its Destroyed
 	ReloadSound.Ended:Connect(function(soundId: string) 
 		ReloadSound:Destroy()
 	end)
 	
-	task.wait(self.ReloadTime)
-	
-	self.Ammo = self.MaxAmmo
+	-- Wait Reload Time Then Set Ammo To Max
+	task.delay(self.ReloadTime, function()
+		self.Ammo = self.MaxAmmo
+	end)
 end
 
 -- Function To Shoot A Bullet Directed Towards The Target
 function Gun:Shoot(MousePosition)
+	-- Check If Sufficient Ammo Else Reload
 	if self.Ammo > 0 then
+		-- Subtract Ammo
 		self.Ammo -= 1
-
+		
+		-- Create Raycast Params And Ignore CurrentModel, workspace.Bullets, And self.Owner.Character
 		local RaycastParameters = RaycastParams.new()
 		RaycastParameters.FilterType = Enum.RaycastFilterType.Exclude
-		RaycastParameters.FilterDescendantsInstances = {self.CurrentModel.Parent, workspace.Bullets}
-
+		RaycastParameters.FilterDescendantsInstances = {self.CurrentModel.Parent, workspace.Bullets, self.Owner.Character}
+		
+		-- Create Origin And Direction Variables
 		local Origin = self.CurrentModel.BulletOrigin.Position
 		local Direction = (MousePosition - Origin).Unit
-
+		
+		-- Create Spread 
 		local Yaw = (math.random() - 0.5) * self.Spread
 		local Pitch = (math.random() - 0.5) * self.Spread
 		local SpreadCFrame = CFrame.new(Origin, Origin + Direction) * CFrame.Angles(Pitch, Yaw, 0)
 		local SpreadDirection = SpreadCFrame.LookVector * 1000
-
+		
+		-- Create RaycastResult
 		local RaycastResult = workspace:Raycast(Origin, SpreadDirection, RaycastParameters)
 
 		if RaycastResult then
+			-- Get Instance And Humanoid
 			local RaycastInstance = RaycastResult.Instance
 			local Humanoid = RaycastInstance.Parent:FindFirstChildOfClass("Humanoid") or RaycastInstance.Parent.Parent:FindFirstChildOfClass("Humanoid")
-
+			
+			-- Create Bullet
 			CreateBullet(Origin, RaycastResult.Position, self)
-
+			
+			-- If Humanoid And Not From self.Owner.Character Take Damage, Multiply By self.HeadShotMultiplier If Hit Head
 			if Humanoid and self.Owner.Character:FindFirstChildOfClass("Humanoid") ~= Humanoid then
 				if RaycastInstance.Name == "Head" then
 					Humanoid:TakeDamage(CalculateDamage(self.Damage * self.HeadShotMultiplier, RaycastResult, self))
@@ -253,11 +298,13 @@ function Gun:Shoot(MousePosition)
 				end
 			end
 		end
-
+		
+		-- Create Fire Sound, Parent, And Play
 		local FireSound = self.CurrentModel.Sounds.Fire:Clone()
 		FireSound.Parent = self.CurrentModel.Sounds
 		FireSound:Play()
-
+		
+		-- Link Event So Once Sound Ends It Gets Deleted
 		FireSound.Ended:Once(function(soundId: string) 
 			FireSound:Destroy()
 		end)
@@ -272,13 +319,37 @@ end
 
 -- Function To Delete The Gun And Remove It From The Retrival System
 function Gun:Remove()
+	-- Retrieve Gun From Model
 	Gun:RemoveGunFromModel(self.CurrentModel)
+	-- Delete CurrentModel If Exist
 	if self.CurrentModel then
 		self.CurrentModel:Destroy()
 	end
+	-- Remove All Properties Of Gun To Remove Object
 	for Key, _ in pairs(self) do
 		self[Key] = nil
 	end
 end
 
+-- Function To Remove All Guns From A Player
+function Gun:RemoveGunsFromPlayer(Player)
+	-- Get All Guns Then Use Their :Remove Function To Delete Them, And Remove The Players Gun Table
+	local Guns = Gun:GetGunsFromPlayer(Player)
+	
+	-- If Guns Loop Through Them And Use :Remove Function
+	if Guns then
+		for _, Gun in pairs(Guns) do
+			if Gun then
+				Gun:Remove()
+			end
+		end
+	end
+	
+	-- Set The Guns.Player To Be nil
+	if Gun.Guns[Player] then
+		Gun.Guns[Player] = nil
+	end 
+end
+
+-- Return Module
 return Gun
