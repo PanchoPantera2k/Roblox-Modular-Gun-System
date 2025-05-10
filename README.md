@@ -4,7 +4,7 @@ A Modular Open Source Gun System, Easily Add Guns And Change Data.  To Add Guns,
 --[[
 
 
-Made By @PanchoPantera2k, Alt Account: AbcForMonkeyMan
+Made By @PanchoPantera2k
 
 These modules manage guns in a modular,
 object-oriented way, allowing guns to be created, 
